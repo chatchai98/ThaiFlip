@@ -1,0 +1,14 @@
+TabThai v0.1.0 — leading Thai marks and configurable hint duration
+Author: Chatchai Jomta
+License: MIT
+Contact: chatchai.j98@gmail.com
+
+41 tests passed; 0 failed; 1 interactive desktop test ignored.
+Registry tests run outside the restrictive sandbox using unique Software\TabThaiStartupTest-* keys; the real Windows Run key was not modified. Temporary test keys are removed when their guards are dropped.
+Coverage includes quoted executable paths, enable/disable and stale snapshot detection, restoring another copy, rollback on settings save failure, Startup-only saves without an INI write, checkbox persistence across reopening the hidden Settings form, and continued operation of other settings when Startup is unreadable.
+README image reference ./assets/tabthai.png and the PNG signature were verified locally.
+Actual Windows logon/restart behavior and physical-key end-to-end behavior remain unverified.
+
+Leading-mark mapping roundtrips cover n/ื, b/ิ, notify/ืนะรดั and hello/้ำสสน. A real hidden RICHEDIT50W test verifies native bulk replacements at document start and after a space, including lone vowels.
+Hint duration defaults to 3 seconds; supported values: 1, 2, 3, 5, 10, 15, 30. Hidden Settings tests verify persistence and duration-only saving.
+Release build completed offline with locked dependencies. Physical-key Notepad correction and generic UIA end-to-end behavior still require manual verification.

@@ -1,0 +1,4 @@
+# One executable name per line. No apps are excluded by default.
+# Examples:
+# Code.exe
+# WindowsTerminal.exe

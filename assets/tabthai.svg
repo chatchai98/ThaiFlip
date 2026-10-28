@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="56" fill="#152c43"/>
+  <text x="45" y="132" font-family="Leelawadee UI, sans-serif" font-size="108" font-weight="700" fill="#f4fafb">ก</text>
+  <text x="137" y="218" font-family="Segoe UI, sans-serif" font-size="109" font-weight="700" fill="#64e5d1">A</text>
+  <path d="M142 54H205L190 39M205 54L190 69M112 202H49L64 187M49 202L64 217" fill="none" stroke="#64e5d1" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

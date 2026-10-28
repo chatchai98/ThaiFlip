@@ -1,0 +1,6 @@
+/target/
+/dist/
+/*.exe
+/settings.ini
+/excluded-apps.txt
+/*.tmp-*
