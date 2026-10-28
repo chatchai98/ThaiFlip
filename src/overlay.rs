@@ -118,14 +118,14 @@ impl Overlay {
             lpfnWndProc: Some(popup_proc),
             hInstance: instance,
             hIcon: icon,
-            lpszClassName: w!("TabThaiCaretHint"),
+            lpszClassName: w!("ThaiFlipCaretHint"),
             ..Default::default()
         };
         RegisterClassW(&class);
         let hwnd = CreateWindowExW(
             WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_LAYERED,
             class.lpszClassName,
-            w!("TabThai hint"),
+            w!("ThaiFlip hint"),
             WS_POPUP,
             0,
             0,

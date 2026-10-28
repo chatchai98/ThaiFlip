@@ -1,6 +1,6 @@
 # Third-party notices
 
-TabThai itself is licensed under MIT; see LICENSE. The packages below retain their own copyrights. The MIT option is selected for dual MIT/Apache-2.0 dependencies. unicode-ident additionally includes Unicode-3.0 terms.
+ThaiFlip itself is licensed under MIT; see LICENSE. The packages below retain their own copyrights. The MIT option is selected for dual MIT/Apache-2.0 dependencies. unicode-ident additionally includes Unicode-3.0 terms.
 
 This list covers the locked build/runtime dependency set. The Windows distribution also includes the Rust toolchain standard-library notice collection as THIRD_PARTY_RUST.html.
 

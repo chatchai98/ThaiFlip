@@ -191,7 +191,7 @@ impl Registration {
         if enabled && (self.command.bytes.len() / 2).saturating_sub(1) > 260 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "Executable path is too long for Windows Startup. Move TabThai to a shorter path.",
+                "Executable path is too long for Windows Startup. Move ThaiFlip to a shorter path.",
             ));
         }
         let after = if enabled {

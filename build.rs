@@ -1,7 +1,7 @@
 use std::{env, fs, path::PathBuf, process::Command};
 
 fn main() {
-    println!("cargo:rerun-if-changed=assets/tabthai.ico");
+    println!("cargo:rerun-if-changed=assets/thaiflip.ico");
     println!("cargo:rerun-if-changed=assets/app.rc");
     if !env::var("TARGET").unwrap().ends_with("windows-msvc") {
         return;
@@ -26,7 +26,7 @@ fn main() {
     fs::write(out.join("version.h"), format!(
         "#define APP_VERSION_COMMA {major},{minor},{patch},0\n#define APP_VERSION_STRING \"{version}\"\n"
     )).expect("Cannot write version resource header");
-    let resource = out.join("tabthai.res");
+    let resource = out.join("thaiflip.res");
     let result = Command::new(compiler)
         .arg("/nologo")
         .arg("/I")

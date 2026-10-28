@@ -172,7 +172,7 @@ mod tests {
             .parent()
             .unwrap()
             .join(format!(
-                "tabthai-test-{}-{}",
+                "thaiflip-test-{}-{}",
                 std::process::id(),
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)

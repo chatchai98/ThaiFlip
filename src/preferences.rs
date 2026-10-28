@@ -92,7 +92,7 @@ impl Preferences {
         write_atomic(
             &self.path,
             &format!(
-                "# TabThai preferences\nauto={}\nshortcut={}\nhint_seconds={}\n",
+                "# ThaiFlip preferences\nauto={}\nshortcut={}\nhint_seconds={}\n",
                 self.auto,
                 self.shortcut.encode(),
                 self.hint_seconds

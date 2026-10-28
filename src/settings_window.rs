@@ -96,7 +96,7 @@ unsafe fn open_with_startup(
     let class = WNDCLASSW {
         lpfnWndProc: Some(proc),
         hInstance: instance,
-        lpszClassName: w!("TabThaiSettings"),
+        lpszClassName: w!("ThaiFlipSettings"),
         hbrBackground: HBRUSH((COLOR_WINDOW.0 + 1) as *mut _),
         hCursor: LoadCursorW(None, IDC_ARROW)?,
         hIcon: LoadIconW(Some(instance), PCWSTR(1usize as *const u16))?,
@@ -107,7 +107,7 @@ unsafe fn open_with_startup(
     let hwnd = CreateWindowExW(
         WS_EX_CONTROLPARENT,
         class.lpszClassName,
-        w!("TabThai settings"),
+        w!("ThaiFlip settings"),
         style,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
@@ -201,7 +201,7 @@ unsafe fn open_with_startup(
         );
         let startup = child(
             w!("BUTTON"),
-            w!("Start TabThai with &Windows (current user)"),
+            w!("Start ThaiFlip with &Windows (current user)"),
             WS_TABSTOP | WINDOW_STYLE(BS_AUTOCHECKBOX as u32),
             15,
             18,
@@ -550,7 +550,7 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
             MessageBoxW(
                 Some(owner),
                 PCWSTR(error.as_ptr()),
-                w!("TabThai settings"),
+                w!("ThaiFlip settings"),
                 MB_OK | MB_ICONERROR,
             );
         }
@@ -576,7 +576,7 @@ mod tests {
                 .unwrap()
                 .parent()
                 .unwrap()
-                .join(format!("tabthai-settings-test-{}.ini", std::process::id()));
+                .join(format!("thaiflip-settings-test-{}.ini", std::process::id()));
             assert!(!path.exists());
             let shared = Arc::new(Mutex::new(Runtime::new(
                 Preferences::load(path.clone()).unwrap(),
@@ -630,7 +630,7 @@ mod tests {
                 .unwrap()
                 .parent()
                 .unwrap()
-                .join(format!("tabthai-startup-ui-{}.ini", std::process::id()));
+                .join(format!("thaiflip-startup-ui-{}.ini", std::process::id()));
             assert!(!path.exists());
             let shared = Arc::new(Mutex::new(Runtime::new(
                 Preferences::load(path.clone()).unwrap(),

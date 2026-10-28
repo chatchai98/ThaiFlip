@@ -1,7 +1,7 @@
-# ⌨️ TabThai v0.1.0
+# ⌨️ ThaiFlip v0.1.0
 
 <p align="center">
-  <img src="./assets/tabthai.png" width="128" height="128" alt="TabThai icon">
+  <img src="./assets/thaiflip.png" width="128" height="128" alt="ThaiFlip icon">
 </p>
 
 **A lightweight Thai ↔ English keyboard-layout correction utility for Windows, written in Rust.**
@@ -41,11 +41,11 @@
 ## 🚀 เริ่มใช้งาน
 
 1. แตกแพ็กเกจ Windows ทั้งโฟลเดอร์ ไม่ต้องติดตั้ง Rust เพื่อเปิด EXE
-2. ปิด TabThai รุ่นอื่นจาก system tray ก่อน เพราะเปิดพร้อมกันไม่ได้
+2. ปิด TabThai หรือ ThaiFlip รุ่นอื่นจาก system tray ก่อน เพราะเปิดพร้อมกันไม่ได้
 3. ตรวจว่า Windows ติดตั้ง **Thai Kedmanee** และ **English US** อยู่แล้ว
-4. เปิด **TabThai.exe** ไอคอนจะแสดงข้างนาฬิกา หรืออยู่ในเมนูไอคอนที่ซ่อน
+4. เปิด **ThaiFlip.exe** ไอคอนจะแสดงข้างนาฬิกา หรืออยู่ในเมนูไอคอนที่ซ่อน
 5. พิมพ์ c]h; แล้วกดและปล่อย Alt ซ้ายสองครั้ง ควรได้ แล้ว พร้อมคำขอสลับเป็นภาษาไทย
-6. คลิกไอคอน → **About TabThai** เพื่อดูเวอร์ชัน ผู้พัฒนา ช่องทางติดต่อ และ license
+6. คลิกไอคอน → **About ThaiFlip** เพื่อดูเวอร์ชัน ผู้พัฒนา ช่องทางติดต่อ และ license
 
 **Tab ทำงานตามปกติ** คำสั่งแก้เองแปลงตามที่สั่งเสมอ ดังนั้นกดกับคำที่ถูกอยู่แล้วก็จะแปลงด้วย
 
@@ -53,13 +53,13 @@
 
 1. เก็บโฟลเดอร์แอปในตำแหน่งที่จะใช้งานถาวรก่อนเปิดตัวเลือกนี้
 2. คลิกไอคอนข้างนาฬิกา → **Settings...**
-3. ติ๊ก **Start TabThai with Windows (current user)** แล้วกด **Save**
+3. ติ๊ก **Start ThaiFlip with Windows (current user)** แล้วกด **Save**
 4. เมื่อเข้าสู่บัญชี Windows ครั้งถัดไป แอปจะเริ่มทำงานใน system tray ตามการจัดการ Startup ของ Windows
 5. หากต้องการยกเลิก ให้เปิด Settings เอาเครื่องหมายถูกออก แล้วกด Save
 
 ฟีเจอร์นี้ **ไม่เปิดเองตามค่าเริ่มต้น** และการเปิดหน้าตั้งค่าหรือกด Cancel จะไม่เปลี่ยน Startup ไม่มีการสร้าง service หรืองานที่ต้องใช้ Administrator
 
-การลงทะเบียนใช้ค่า TabThai ที่ HKCU\Software\Microsoft\Windows\CurrentVersion\Run สำหรับบัญชีปัจจุบัน โดยใช้เส้นทาง EXE แบบเต็มและใส่เครื่องหมายคำพูดเพื่อรองรับชื่อโฟลเดอร์ที่มีช่องว่าง ช่อง Startup อ่านสถานะจาก Windows โดยตรง ไม่เก็บค่า true/false ซ้ำใน settings.ini
+เพื่อให้เข้ากันได้กับรุ่นเดิม การลงทะเบียนยังใช้ค่า TabThai ที่ HKCU\Software\Microsoft\Windows\CurrentVersion\Run สำหรับบัญชีปัจจุบัน โดยใช้เส้นทาง EXE แบบเต็มและใส่เครื่องหมายคำพูดเพื่อรองรับชื่อโฟลเดอร์ที่มีช่องว่าง ช่อง Startup อ่านสถานะจาก Windows โดยตรง ไม่เก็บค่า true/false ซ้ำใน settings.ini
 
 หากย้ายโฟลเดอร์หรือใช้ EXE อีกสำเนา ให้เปิดแอปจากตำแหน่งใหม่แล้วติ๊กเปิดอีกครั้งเพื่ออัปเดตเส้นทาง แอปจะไม่ลบรายการที่ชี้ไปอีกสำเนาเพียงเพราะช่องในสำเนาปัจจุบันไม่ได้ถูกเลือก
 
@@ -120,7 +120,7 @@ Auto **ปิดไว้ตามค่าเริ่มต้น** เปิ�
 
 ไอคอน → **Excluded apps → Add application...** → เลือก EXE ที่ใช้งานจริง
 
-แอปที่ยกเว้นจะไม่ถูกอ่านคำ ไม่แสดงป้าย ไม่ใช้ Auto และไม่ดักคีย์ลัดของ TabThai หากต้องการเปิดใช้อีกครั้งเลือก **Remove: ชื่อแอป.exe**
+แอปที่ยกเว้นจะไม่ถูกอ่านคำ ไม่แสดงป้าย ไม่ใช้ Auto และไม่ดักคีย์ลัดของ ThaiFlip หากต้องการเปิดใช้อีกครั้งเลือก **Remove: ชื่อแอป.exe**
 
 จับคู่ตามชื่อ EXE แบบไม่แยกตัวพิมพ์ใหญ่เล็ก ใช้กับทุกไฟล์ที่ชื่อเดียวกัน และรองรับสูงสุด 128 ชื่อ
 
@@ -154,7 +154,7 @@ Auto **ปิดไว้ตามค่าเริ่มต้น** เปิ�
 
     cargo build --release --locked
 
-EXE อยู่ที่ **target/release/tabthai.exe** เลขเวอร์ชันใน Windows file properties และ About อ่านจาก Cargo.toml
+EXE อยู่ที่ **target/release/thaiflip.exe** เลขเวอร์ชันใน Windows file properties และ About อ่านจาก Cargo.toml
 
 ## 🧪 ทดสอบ
 
@@ -172,9 +172,9 @@ EXE อยู่ที่ **target/release/tabthai.exe** เลขเวอร�
 
 ## 📥 ดาวน์โหลด
 
-[ดาวน์โหลด TabThai v0.1.0 สำหรับ Windows x64](https://github.com/chatchai98/TabThai/releases/download/v0.1.0/TabThai-v0.1.0-windows-x64.zip) แล้วแตก ZIP ทั้งโฟลเดอร์ก่อนเปิด TabThai.exe
+[ดาวน์โหลด ThaiFlip v0.1.0 สำหรับ Windows x64](https://github.com/chatchai98/ThaiFlip/releases/download/v0.1.0-thaiflip/ThaiFlip-v0.1.0-windows-x64.zip) แล้วแตก ZIP ทั้งโฟลเดอร์ก่อนเปิด ThaiFlip.exe
 
-[ซอร์สโค้ดบน GitHub](https://github.com/chatchai98/TabThai) · [Release ทั้งหมด](https://github.com/chatchai98/TabThai/releases)
+[ซอร์สโค้ดบน GitHub](https://github.com/chatchai98/ThaiFlip) · [Release ทั้งหมด](https://github.com/chatchai98/ThaiFlip/releases)
 
 ## 🐛 รายงานบั๊ก
 

@@ -1,6 +1,6 @@
 #include "version.h"
 
-1 ICON "assets/tabthai.ico"
+1 ICON "assets/thaiflip.ico"
 
 1 VERSIONINFO
 FILEVERSION APP_VERSION_COMMA
@@ -16,12 +16,12 @@ BEGIN
         BLOCK "040904b0"
         BEGIN
             VALUE "CompanyName", "Chatchai Jomta"
-            VALUE "FileDescription", "TabThai - Thai/English keyboard layout correction"
+            VALUE "FileDescription", "ThaiFlip - Thai/English keyboard layout correction"
             VALUE "FileVersion", APP_VERSION_STRING
-            VALUE "InternalName", "tabthai"
+            VALUE "InternalName", "thaiflip"
             VALUE "LegalCopyright", "Copyright (c) 2026 Chatchai Jomta"
-            VALUE "OriginalFilename", "TabThai.exe"
-            VALUE "ProductName", "TabThai"
+            VALUE "OriginalFilename", "ThaiFlip.exe"
+            VALUE "ProductName", "ThaiFlip"
             VALUE "ProductVersion", APP_VERSION_STRING
             VALUE "Comments", "MIT License. Contact: chatchai.j98@gmail.com"
         END

@@ -188,7 +188,7 @@ unsafe fn message(text: &str) {
     MessageBoxW(
         None,
         windows::core::PCWSTR(text.as_ptr()),
-        w!("TabThai"),
+        w!("ThaiFlip"),
         MB_OK | MB_ICONINFORMATION,
     );
 }
@@ -619,7 +619,7 @@ unsafe fn choose_exclusion(owner: HWND) {
         lpstrFile: PWSTR(filename.as_mut_ptr()),
         nMaxFile: filename.len() as u32,
         lpstrFilter: PCWSTR(filter.as_ptr()),
-        lpstrTitle: w!("Exclude an application from TabThai"),
+        lpstrTitle: w!("Exclude an application from ThaiFlip"),
         Flags: OFN_FILEMUSTEXIST
             | OFN_PATHMUSTEXIST
             | OFN_NOCHANGEDIR
@@ -707,8 +707,8 @@ unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPAR
                 }
                 let _ = AppendMenuW(menu, MF_POPUP, submenu.0 as usize, w!("Excluded apps"));
             }
-            let _ = AppendMenuW(menu, MF_STRING, ABOUT as usize, w!("About TabThai"));
-            let _ = AppendMenuW(menu, MF_STRING, EXIT as usize, w!("Exit TabThai"));
+            let _ = AppendMenuW(menu, MF_STRING, ABOUT as usize, w!("About ThaiFlip"));
+            let _ = AppendMenuW(menu, MF_STRING, EXIT as usize, w!("Exit ThaiFlip"));
             let mut point = POINT::default();
             let _ = GetCursorPos(&mut point);
             let _ = SetForegroundWindow(hwnd);
@@ -736,7 +736,7 @@ unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPAR
                     }
                 }
             } else if command.0 as u32 == ABOUT {
-                message(&format!("TabThai v{}\n\nAuthor: {}\nLicense: {}\n\nOffline Thai / English keyboard layout correction.",
+                message(&format!("ThaiFlip v{}\n\nAuthor: {}\nLicense: {}\n\nOffline Thai / English keyboard layout correction.",
                     env!("CARGO_PKG_VERSION"),env!("CARGO_PKG_AUTHORS"),env!("CARGO_PKG_LICENSE")));
             } else if let Some(name) = (command.0 as u32)
                 .checked_sub(REMOVE_EXCLUSION)
@@ -765,7 +765,7 @@ pub fn run() {
             return;
         };
         if GetLastError() == ERROR_ALREADY_EXISTS {
-            message("TabThai is already running. See the system tray.");
+            message("ThaiFlip is already running. See the system tray.");
             let _ = CloseHandle(mutex);
             return;
         }
@@ -777,7 +777,7 @@ pub fn run() {
             }
             Err(error) => {
                 message(&format!(
-                    "Cannot read excluded-apps.txt. Fix it and restart TabThai.\n{error}"
+                    "Cannot read excluded-apps.txt. Fix it and restart ThaiFlip.\n{error}"
                 ));
                 let _ = CloseHandle(mutex);
                 return;
@@ -864,14 +864,14 @@ pub fn run() {
             hInstance: instance,
             hIcon: LoadIconW(Some(instance), windows::core::PCWSTR(1usize as *const u16))
                 .unwrap_or_default(),
-            lpszClassName: w!("TabThaiHiddenWindow"),
+            lpszClassName: w!("ThaiFlipHiddenWindow"),
             ..Default::default()
         };
         RegisterClassW(&class);
         let Ok(hwnd) = CreateWindowExW(
             WINDOW_EX_STYLE(0),
             class.lpszClassName,
-            w!("TabThai"),
+            w!("ThaiFlip"),
             WINDOW_STYLE(0),
             0,
             0,
@@ -894,7 +894,7 @@ pub fn run() {
             hIcon: class.hIcon,
             ..Default::default()
         };
-        let tip = wide("TabThai: TH / EN. Click for settings, pause or exit.");
+        let tip = wide("ThaiFlip: TH / EN. Click for settings, pause or exit.");
         tray.szTip[..tip.len()].copy_from_slice(&tip);
         if !Shell_NotifyIconW(NIM_ADD, &tray).as_bool() {
             message("Cannot add system tray icon.");
@@ -1033,7 +1033,7 @@ mod tests {
             let hwnd = CreateWindowExW(
                 WINDOW_EX_STYLE(0),
                 w!("STATIC"),
-                w!("TabThai integration test"),
+                w!("ThaiFlip integration test"),
                 WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                 50,
                 50,
@@ -1057,7 +1057,7 @@ mod tests {
             let _ = SETTINGS.set(Mutex::new(
                 Exclusions::load(
                     std::env::temp_dir()
-                        .join(format!("tabthai-empty-test-{}.txt", std::process::id())),
+                        .join(format!("thaiflip-empty-test-{}.txt", std::process::id())),
                 )
                 .unwrap(),
             ));

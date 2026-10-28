@@ -1,5 +1,5 @@
 [package]
-name = "tabthai"
+name = "thaiflip"
 version = "0.1.0"
 edition = "2021"
 authors = ["Chatchai Jomta <chatchai.j98@gmail.com>"]
