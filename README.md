@@ -170,11 +170,11 @@ EXE อยู่ที่ **target/release/tabthai.exe** เลขเวอร�
 
 ยังไม่ได้ทดสอบการออกจากระบบ/เริ่ม Windows ใหม่จริง และยังไม่ได้ยืนยันการกดคีย์จริง Auto และการสลับภาษาแบบ end-to-end กับ Notepad/ทุกแอป รวมถึงภาพจริงบนหลายจอ ควรทดลองกับข้อความที่ไม่สำคัญก่อนใช้ประจำวัน
 
-## GitHub
+## ดาวน์โหลด
 
-Repository สำหรับเผยแพร่: `chatchai98/TabThai`
+[ดาวน์โหลด TabThai v0.1.0 สำหรับ Windows x64](https://github.com/chatchai98/TabThai/releases/download/v0.1.0/TabThai-v0.1.0-windows-x64.zip) แล้วแตก ZIP ทั้งโฟลเดอร์ก่อนเปิด TabThai.exe
 
-อัปโหลดซอร์สในโฟลเดอร์นี้เป็นรากของ repository โดยไม่รวม `dist/` ส่วนไฟล์ `dist/TabThai-v0.1.0-windows-x64.zip` ใช้แนบใน GitHub Release แท็ก `v0.1.0` เพื่อให้ผู้ใช้ดาวน์โหลดแอปได้โดยไม่ต้อง build
+[ซอร์สโค้ดบน GitHub](https://github.com/chatchai98/TabThai) · [Release ทั้งหมด](https://github.com/chatchai98/TabThai/releases)
 
 ## รายงานบั๊ก
 
