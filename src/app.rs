@@ -45,6 +45,7 @@ struct ActionRequest {
     automatic: bool,
 }
 static JOBS: OnceLock<mpsc::Sender<ActionRequest>> = OnceLock::new();
+static WORKERS_STOP: AtomicBool = AtomicBool::new(false);
 static HINTS: OnceLock<Mutex<mpsc::Receiver<Option<Hint>>>> = OnceLock::new();
 static LAST_INPUT: AtomicU64 = AtomicU64::new(0);
 static HINT_DURATION_MS: AtomicU64 = AtomicU64::new(3000);
@@ -817,7 +818,7 @@ pub fn run() {
             if let Ok(automation) = automation {
                 let detector = Detector::new();
                 let mut undo = None;
-                loop {
+                while !WORKERS_STOP.load(Ordering::Relaxed) {
                     match rx.recv_timeout(Duration::from_millis(120)) {
                         Ok(request) => {
                             let foreground = HWND(request.foreground as *mut _);
@@ -833,12 +834,6 @@ pub fn run() {
                                     || u.foreground != GetForegroundWindow().0 as isize
                             }) {
                                 undo = None;
-                            }
-                            let revision = REVISION.load(Ordering::Relaxed);
-                            let hint = inspect_word(&automation, &detector);
-                            // Superseded reads are not evidence that the active text field disappeared.
-                            if REVISION.load(Ordering::Relaxed) == revision {
-                                let _ = hint_tx.try_send(hint);
                             }
                         }
                         Err(mpsc::RecvTimeoutError::Disconnected) => break,
@@ -857,6 +852,27 @@ pub fn run() {
             let _ = CloseHandle(mutex);
             return;
         }
+        // A slow hint provider must not hold up shortcut correction or undo.
+        thread::spawn(move || {
+            let initialized = CoInitializeEx(None, COINIT_MULTITHREADED).is_ok();
+            if initialized {
+                if let Ok(automation) =
+                    CoCreateInstance::<_, IUIAutomation>(&CUIAutomation, None, CLSCTX_INPROC_SERVER)
+                {
+                    let detector = Detector::new();
+                    while !WORKERS_STOP.load(Ordering::Relaxed) {
+                        thread::sleep(Duration::from_millis(120));
+                        let revision = REVISION.load(Ordering::Relaxed);
+                        let hint = inspect_word(&automation, &detector);
+                        // Superseded reads are not evidence that the text field disappeared.
+                        if REVISION.load(Ordering::Relaxed) == revision {
+                            let _ = hint_tx.try_send(hint);
+                        }
+                    }
+                }
+                CoUninitialize();
+            }
+        });
         let _ = JOBS.set(tx);
         let instance: HINSTANCE = GetModuleHandleW(None).unwrap_or_default().into();
         let class = WNDCLASSW {
@@ -940,6 +956,7 @@ pub fn run() {
             message("Cannot register keyboard hook.");
         }
         let _ = Shell_NotifyIconW(NIM_DELETE, &tray);
+        WORKERS_STOP.store(true, Ordering::Relaxed);
         if let Ok(mouse_handle) = mouse_handle {
             let _ = UnhookWindowsHookEx(mouse_handle);
         }

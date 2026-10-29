@@ -116,6 +116,12 @@ mod tests {
         assert!(!p.auto);
         assert_eq!(p.hint_seconds, 3);
         assert_eq!(p.shortcut, Shortcut::Double(164));
+        assert_eq!(
+            Preferences::parse(PathBuf::new(), "shortcut=single:164")
+                .unwrap()
+                .shortcut,
+            Shortcut::Single(164)
+        );
         assert!(
             Preferences::parse(PathBuf::new(), "auto=true\nshortcut=chord:2:32")
                 .unwrap()

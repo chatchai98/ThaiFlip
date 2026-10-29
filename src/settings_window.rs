@@ -27,6 +27,7 @@ const RECORD: usize = 1002;
 const HINT_DURATION: usize = 1003;
 const SAVE: usize = 1;
 const CANCEL: usize = 2;
+const MODES: [CaptureMode; 3] = [CaptureMode::Double, CaptureMode::Chord, CaptureMode::Single];
 static WINDOW: AtomicIsize = AtomicIsize::new(0);
 thread_local! { static PANEL: RefCell<Option<Panel>> = const { RefCell::new(None) }; }
 
@@ -242,17 +243,20 @@ unsafe fn open_with_startup(
             280,
             180,
         )?;
-        for label in [w!("Double tap a modifier"), w!("Key combination")] {
+        for label in [
+            w!("Double tap a modifier"),
+            w!("Key combination"),
+            w!("Single tap a modifier"),
+        ] {
             send(mode, CB_ADDSTRING, 0, label.0 as isize);
         }
         send(
             mode,
             CB_SETCURSEL,
-            if matches!(preferences.shortcut, Shortcut::Double(_)) {
-                0
-            } else {
-                1
-            },
+            MODES
+                .iter()
+                .position(|mode| *mode == preferences.shortcut.capture_mode())
+                .unwrap(),
             0,
         );
         child(
@@ -319,7 +323,7 @@ unsafe fn open_with_startup(
                 .unwrap_or(2),
             0,
         );
-        let status=child(w!("STATIC"),w!("Double tap: left Alt or left/right Ctrl/Shift.\nCombination: Ctrl/Alt + a key. Some apps may use the same shortcut."),WINDOW_STYLE(0),14,18,217,420,65)?;
+        let status=child(w!("STATIC"),w!("Single/double tap: left Alt or left/right Ctrl/Shift.\nCombination: Ctrl/Alt + a key. Some apps may use the same shortcut."),WINDOW_STYLE(0),14,18,217,420,65)?;
         if let Some(error) = &startup_error {
             text(
                 status,
@@ -472,6 +476,37 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
     }
     if msg == WM_COMMAND {
         let command = wp.0 & 0xffff;
+        if command == MODE && (wp.0 >> 16) == CBN_SELCHANGE as usize {
+            PANEL.with_borrow_mut(|panel| {
+                if let Some(panel) = panel {
+                    if let Ok(mut runtime) = panel.shared.lock() {
+                        runtime.keys.cancel_capture();
+                    }
+                    let selected = MODES.get(send(panel.mode, CB_GETCURSEL, 0, 0).0 as usize);
+                    panel.draft = match (selected, panel.draft) {
+                        (
+                            Some(CaptureMode::Single),
+                            Shortcut::Single(key) | Shortcut::Double(key),
+                        ) => Shortcut::Single(key),
+                        (
+                            Some(CaptureMode::Double),
+                            Shortcut::Single(key) | Shortcut::Double(key),
+                        ) => Shortcut::Double(key),
+                        _ => panel.draft,
+                    };
+                    text(panel.shortcut, &panel.draft.label());
+                    text(
+                        panel.status,
+                        if selected == Some(&panel.draft.capture_mode()) {
+                            "Click Save to apply the selected tap mode."
+                        } else {
+                            "Click Record to choose a shortcut of the selected type."
+                        },
+                    );
+                }
+            });
+            return LRESULT(0);
+        }
         if !matches!(command, RECORD | SAVE | CANCEL) {
             return DefWindowProcW(hwnd, msg, wp, lp);
         }
@@ -486,25 +521,23 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
                 return;
             };
             if command == RECORD {
-                let mode = if send(panel.mode, CB_GETCURSEL, 0, 0).0 == 0 {
-                    CaptureMode::Double
-                } else {
-                    CaptureMode::Chord
+                let Some(&mode) = MODES.get(send(panel.mode, CB_GETCURSEL, 0, 0).0 as usize) else {
+                    return;
                 };
                 if let Ok(mut runtime) = panel.shared.lock() {
                     runtime.keys.begin_capture(mode);
                 }
                 text(
                     panel.status,
-                    if mode == CaptureMode::Double {
+                    if mode != CaptureMode::Chord {
                         "Tap the desired Alt/Ctrl/Shift key once. Escape cancels."
                     } else {
                         "Press the desired combination (for example Ctrl+Space). Escape cancels."
                     },
                 );
             } else if command == SAVE {
-                let double = send(panel.mode, CB_GETCURSEL, 0, 0).0 == 0;
-                if double != matches!(panel.draft, Shortcut::Double(_)) {
+                let selected = MODES.get(send(panel.mode, CB_GETCURSEL, 0, 0).0 as usize);
+                if selected != Some(&panel.draft.capture_mode()) {
                     text(
                         panel.status,
                         "Record a shortcut of the selected type before saving.",
@@ -568,6 +601,38 @@ mod tests {
     use super::*;
     use crate::{input::CTRL, preferences::Preferences};
     static UI_TEST_LOCK: Mutex<()> = Mutex::new(());
+    #[test]
+    fn single_tap_selection_saves_and_reopens_without_rerecording() {
+        let _guard = UI_TEST_LOCK.lock().unwrap();
+        unsafe {
+            let path = unique_path("single-tap-settings");
+            let shared = Arc::new(Mutex::new(Runtime::new(
+                Preferences::load(path.clone()).unwrap(),
+            )));
+            let registration = Registration::isolated().unwrap();
+            open_with_startup(HWND::default(), shared.clone(), registration.clone()).unwrap();
+            let (hwnd, mode) = PANEL.with_borrow(|p| {
+                let p = p.as_ref().unwrap();
+                (p.hwnd, p.mode)
+            });
+            send(mode, CB_SETCURSEL, 2, 0);
+            send(hwnd, WM_COMMAND, MODE | ((CBN_SELCHANGE as usize) << 16), 0);
+            send(hwnd, WM_COMMAND, SAVE, 0);
+            assert_eq!(
+                Preferences::load(path.clone()).unwrap().shortcut,
+                Shortcut::Single(164)
+            );
+            assert_eq!(registration.read().unwrap(), None);
+            open_with_startup(HWND::default(), shared, registration).unwrap();
+            PANEL.with_borrow(|p| {
+                let p = p.as_ref().unwrap();
+                assert_eq!(send(p.mode, CB_GETCURSEL, 0, 0).0, 2);
+                assert_eq!(p.draft, Shortcut::Single(164));
+            });
+            close();
+            std::fs::remove_file(path).unwrap();
+        }
+    }
     #[test]
     fn settings_form_records_saves_and_reloads_without_changing_foreground() {
         let _guard = UI_TEST_LOCK.lock().unwrap();
