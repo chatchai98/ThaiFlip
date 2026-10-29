@@ -1,10 +1,10 @@
-ThaiFlip v0.1.1
+ThaiFlip v0.1.2
 Author: Chatchai Jomta
 License: MIT
 Contact: chatchai.j98@gmail.com
 
-44 tests passed; 0 failed; 1 interactive desktop test ignored.
-Single-tap tests cover release-only triggering, repeat, chords, focus changes, interruption, disabled targets, invalid shortcuts, capture, INI roundtrip, and native Settings persistence without rerecording. Existing conversion, leading-mark RichEdit, exclusions, popup and temporary-registry tests also passed.
-Hint inspection now uses its own COM/UI Automation instance and thread, so hint reads and hint dictionary checks no longer occupy the correction queue. No app-specific latency improvement has yet been measured; slow UI Automation in the target application or an in-progress Auto request can still delay a manual correction.
-Registry tests use unique temporary HKCU Software\TabThaiStartupTest-* keys and do not modify the real Windows Run key. Legacy Startup value and single-instance mutex are retained.
-Physical-key Notepad correction, Alt+Tab behavior in real applications, and actual Windows logon/startup still require manual verification.
+46 tests passed; 0 failed; 1 interactive desktop test ignored.
+New regression coverage: the double-tap gap ends at the second key-down; long holds and expired gaps remain rejected. Alt menu masking uses an unassigned virtual key, ordered before a replacement Alt-up, with all injected keys marked as owned input. Physical Alt-up is passed through when injection fails.
+Shortcut labels now read runtime state only on the UI/hook thread. Hint workers no longer contend with the hook state mutex. Exclusion policy checks wait for a concurrent read rather than treating lock contention as an excluded application. Exclusion dialogs release the settings lock before entering a nested message loop.
+Existing single-tap, capture, Settings persistence, conversion, leading-mark RichEdit, exclusions, popup and temporary-registry tests passed. Registry tests only use unique temporary HKCU Software\TabThaiStartupTest-* keys.
+The exact Windows notification reported by the user has not been identified. Physical-key menu/sound behavior, full Notepad correction and actual Windows logon remain unverified. No Windows accessibility settings were changed.

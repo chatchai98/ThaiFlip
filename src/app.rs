@@ -36,6 +36,7 @@ const EXIT: u32 = 2;
 
 static PAUSED: AtomicBool = AtomicBool::new(false);
 static AUTO_ENABLED: AtomicBool = AtomicBool::new(false);
+// UI/hook thread only: background reads must not cause the hook's try_lock to drop events.
 static OPTIONS: OnceLock<Arc<Mutex<Runtime>>> = OnceLock::new();
 #[derive(Clone, Copy)]
 struct ActionRequest {
@@ -84,7 +85,7 @@ unsafe fn process_allowed(foreground: HWND) -> bool {
     };
     SETTINGS
         .get()
-        .and_then(|s| s.try_lock().ok())
+        .and_then(|s| s.lock().ok())
         .is_some_and(|settings| !settings.contains(&name))
 }
 
@@ -136,12 +137,19 @@ unsafe fn update_overlay() {
         }
         if let Some(hint) = newest {
             match hint {
-                Some(hint)
+                Some(mut hint)
                     if active
                         && hint.foreground == foreground.0 as isize
                         && hint.focus == focus
                         && hint.revision == revision =>
                 {
+                    // Keep shortcut state on the hook/UI thread; hint reads must not contend with key events.
+                    if hint.suspicious {
+                        if let Some(state) = OPTIONS.get().and_then(|s| s.lock().ok()) {
+                            hint.label =
+                                format!("{} · {}", state.preferences.shortcut.label(), hint.label);
+                        }
+                    }
                     overlay.show(&hint)
                 }
                 None => {
@@ -220,17 +228,14 @@ unsafe extern "system" fn hook(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     let Some(mut state) = OPTIONS.get().and_then(|s| s.try_lock().ok()) else {
         return CallNextHookEx(None, code, wp, lp);
     };
-    let decision = state.keys.event(
-        crate::input::normalize_modifier(
-            event.vkCode as u16,
-            event.scanCode,
-            event.flags.contains(LLKHF_EXTENDED),
-        ),
-        down,
-        GetTickCount64(),
-        focus,
-        eligible,
+    let vk = crate::input::normalize_modifier(
+        event.vkCode as u16,
+        event.scanCode,
+        event.flags.contains(LLKHF_EXTENDED),
     );
+    let mut decision = state
+        .keys
+        .event(vk, down, GetTickCount64(), focus, eligible);
     drop(state);
     if decision.invalidate {
         EDIT_EPOCH.fetch_add(1, Ordering::Relaxed);
@@ -250,11 +255,14 @@ unsafe extern "system" fn hook(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT {
         settings_window::notify_capture();
     }
     if decision.cancel_alt_menu {
-        // A neutral key while Alt is held prevents a bare Alt tap from focusing the menu bar.
-        send(&[
-            key(VK_F24, KEYBD_EVENT_FLAGS(0), 0),
-            key(VK_F24, KEYEVENTF_KEYUP, 0),
-        ]);
+        let releasing_alt = !down && vk == VK_LMENU.0;
+        if send(&menu_mask_inputs(releasing_alt)) {
+            // Replace physical Alt-up so the mask is delivered before Alt is released.
+            decision.consume |= releasing_alt;
+        } else {
+            // Pass the physical Alt-up on failure rather than leaving Alt held down.
+            decision.trigger = false;
+        }
     }
     if decision.trigger
         || (decision.completed_space
@@ -293,6 +301,19 @@ fn key(vk: VIRTUAL_KEY, flags: KEYBD_EVENT_FLAGS, scan: u16) -> INPUT {
 
 unsafe fn send(inputs: &[INPUT]) -> bool {
     SendInput(inputs, std::mem::size_of::<INPUT>() as i32) == inputs.len() as u32
+}
+
+fn menu_mask_inputs(release_alt: bool) -> Vec<INPUT> {
+    // 0xE8 is unassigned; F24 is a real shortcut and can beep or invoke an application command.
+    let mask = VIRTUAL_KEY(0xE8);
+    let mut inputs = vec![
+        key(mask, KEYBD_EVENT_FLAGS(0), 0),
+        key(mask, KEYEVENTF_KEYUP, 0),
+    ];
+    if release_alt {
+        inputs.push(key(VK_LMENU, KEYEVENTF_KEYUP, 0));
+    }
+    inputs
 }
 
 unsafe fn target_layout(target: Target) -> Option<HKL> {
@@ -558,14 +579,9 @@ unsafe fn inspect_word(automation: &IUIAutomation, detector: &Detector) -> Optio
     };
     let label = if suspicious {
         let short: String = replacement.trim().chars().take(32).collect();
-        let shortcut = OPTIONS
-            .get()
-            .and_then(|p| p.try_lock().ok())
-            .map(|p| p.preferences.shortcut.label())?;
         format!(
-            "{}?  {} · {}{}",
+            "{}? · {}{}",
             if target == Target::Thai { "TH" } else { "EN" },
-            shortcut,
             short,
             if replacement.trim().chars().count() > 32 {
                 "…"
@@ -600,12 +616,13 @@ unsafe fn set_exclusion(name: &str, excluded: bool) {
         message("Exclusion settings are unavailable.");
         return;
     };
-    if let Err(error) = settings.set(name, excluded) {
+    let saved = settings.set(name, excluded);
+    drop(settings);
+    if let Err(error) = saved {
         message(&format!(
             "Cannot save excluded-apps.txt. The list was not changed.\n{error}"
         ));
     }
-    drop(settings);
     EDIT_EPOCH.fetch_add(1, Ordering::Relaxed);
     update_foreground_policy();
     update_overlay();
@@ -972,6 +989,28 @@ pub fn run() {
 mod tests {
     use super::*;
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn menu_mask_uses_no_application_shortcut_and_precedes_alt_release() {
+        for release_alt in [false, true] {
+            let inputs = menu_mask_inputs(release_alt);
+            assert_eq!(inputs.len(), if release_alt { 3 } else { 2 });
+            unsafe {
+                assert_eq!(inputs[0].Anonymous.ki.wVk, VIRTUAL_KEY(0xE8));
+                assert_eq!(inputs[0].Anonymous.ki.dwFlags, KEYBD_EVENT_FLAGS(0));
+                assert_eq!(inputs[1].Anonymous.ki.wVk, VIRTUAL_KEY(0xE8));
+                assert_eq!(inputs[1].Anonymous.ki.dwFlags, KEYEVENTF_KEYUP);
+                if release_alt {
+                    assert_eq!(inputs[2].Anonymous.ki.wVk, VK_LMENU);
+                    assert_eq!(inputs[2].Anonymous.ki.dwFlags, KEYEVENTF_KEYUP);
+                }
+                for input in inputs {
+                    assert_eq!(input.Anonymous.ki.dwExtraInfo, OWN_INPUT);
+                    assert_ne!(input.Anonymous.ki.wVk, VK_F24);
+                }
+            }
+        }
+    }
 
     #[test]
     fn undo_expires_and_rejects_intervening_input() {

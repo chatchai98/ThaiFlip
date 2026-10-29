@@ -338,7 +338,7 @@ impl KeyEngine {
                     result.cancel_alt_menu = vk == 164;
                     result.trigger = matches!(self.shortcut, Shortcut::Single(_))
                         || self.last_tap.is_some_and(|(time, window)| {
-                            now.saturating_sub(time) <= DOUBLE_MS && window == foreground
+                            self.down_at.saturating_sub(time) <= DOUBLE_MS && window == foreground
                         });
                     self.last_tap = if result.trigger {
                         None
@@ -398,6 +398,22 @@ mod tests {
         e.event(9, false, 1702, 2, true);
         let result = e.event(164, false, 1703, 2, true);
         assert!(!result.trigger && !result.cancel_alt_menu);
+    }
+    #[test]
+    fn second_tap_deadline_measures_the_gap_not_the_second_hold() {
+        let mut e = KeyEngine::new(Shortcut::Double(164));
+        assert!(!tap(&mut e, 164, 0, 1).trigger);
+        e.event(164, true, 400, 1, true);
+        let release = e.event(164, false, 600, 1, true);
+        assert!(release.trigger && release.cancel_alt_menu);
+
+        tap(&mut e, 164, 1000, 1);
+        e.event(164, true, 1421, 1, true);
+        assert!(!e.event(164, false, 1450, 1, true).trigger);
+        e.interrupt();
+        tap(&mut e, 164, 2000, 1);
+        e.event(164, true, 2100, 1, true);
+        assert!(!e.event(164, false, 2501, 1, true).trigger);
     }
     #[test]
     fn single_tap_fires_on_release_without_breaking_chords_or_focus_guards() {
