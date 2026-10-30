@@ -38,13 +38,20 @@ static PAUSED: AtomicBool = AtomicBool::new(false);
 static AUTO_ENABLED: AtomicBool = AtomicBool::new(false);
 // UI/hook thread only: background reads must not cause the hook's try_lock to drop events.
 static OPTIONS: OnceLock<Arc<Mutex<Runtime>>> = OnceLock::new();
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct ActionRequest {
     foreground: isize,
     focus: isize,
     epoch: u64,
     automatic: bool,
+    approved_text: Option<String>,
 }
+impl ActionRequest {
+    fn permits_text(&self, text: &str) -> bool {
+        !self.automatic || self.approved_text.as_deref() == Some(text)
+    }
+}
+static AUTO_JOBS: OnceLock<mpsc::Sender<ActionRequest>> = OnceLock::new();
 static JOBS: OnceLock<mpsc::Sender<ActionRequest>> = OnceLock::new();
 static WORKERS_STOP: AtomicBool = AtomicBool::new(false);
 static HINTS: OnceLock<Mutex<mpsc::Receiver<Option<Hint>>>> = OnceLock::new();
@@ -101,13 +108,19 @@ unsafe fn update_foreground_policy() {
     );
 }
 
+fn hint_time_active(last_input: u64, now: u64, duration: u64) -> bool {
+    last_input != 0 && (350..duration).contains(&now.saturating_sub(last_input))
+}
+
 unsafe fn hints_active() -> bool {
     !PAUSED.load(Ordering::Relaxed)
         && ALLOWED_FOREGROUND.load(Ordering::Relaxed) == GetForegroundWindow().0 as isize
         && SHOW_HINTS.load(Ordering::Relaxed)
-        && LAST_INPUT.load(Ordering::Relaxed) != 0
-        && GetTickCount64().saturating_sub(LAST_INPUT.load(Ordering::Relaxed))
-            < HINT_DURATION_MS.load(Ordering::Relaxed)
+        && hint_time_active(
+            LAST_INPUT.load(Ordering::Relaxed),
+            GetTickCount64(),
+            HINT_DURATION_MS.load(Ordering::Relaxed),
+        )
 }
 
 unsafe fn update_overlay() {
@@ -275,8 +288,10 @@ unsafe extern "system" fn hook(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT {
             focus,
             epoch: EDIT_EPOCH.load(Ordering::Relaxed),
             automatic: !decision.trigger,
+            approved_text: None,
         };
-        let _ = JOBS.get().is_some_and(|tx| tx.send(request).is_ok());
+        let queue = if request.automatic { &AUTO_JOBS } else { &JOBS };
+        let _ = queue.get().is_some_and(|tx| tx.send(request).is_ok());
     }
     if decision.consume {
         return LRESULT(1);
@@ -384,17 +399,59 @@ impl UndoStamp {
 }
 
 struct Undo {
-    before: String,
+    before: crate::caret::Word,
+    replacement: String,
+    mode: crate::caret::ReadMode,
     layout: HKL,
     foreground: isize,
-    after: crate::caret::Word,
     stamp: UndoStamp,
 }
 
 // Both correction and undo validate the same field, caret, text and input generation.
-unsafe fn handle_action(
+unsafe fn approve_auto(
     automation: &IUIAutomation,
     detector: &Detector,
+    mut request: ActionRequest,
+) -> Option<ActionRequest> {
+    let foreground = HWND(request.foreground as *mut _);
+    let current = || {
+        request.automatic
+            && !PAUSED.load(Ordering::Relaxed)
+            && AUTO_ENABLED.load(Ordering::Relaxed)
+            && TRACK_MOUSE.load(Ordering::Relaxed)
+            && EDIT_EPOCH.load(Ordering::Relaxed) == request.epoch
+            && GetForegroundWindow() == foreground
+            && input_focus(foreground) == request.focus
+    };
+    if !current() || !process_allowed(foreground) {
+        return None;
+    }
+    let deadline = Instant::now() + Duration::from_millis(150);
+    let word = loop {
+        if !current() {
+            return None;
+        }
+        if let Some(word) =
+            crate::caret::read_word_mode(automation, foreground, crate::caret::ReadMode::Completed)
+                .ok()?
+        {
+            break word;
+        }
+        if Instant::now() >= deadline {
+            return None;
+        }
+        thread::sleep(Duration::from_millis(10));
+    };
+    detector.replacement(&word.text, true)?;
+    if !current() || !process_allowed(foreground) {
+        return None;
+    }
+    request.approved_text = Some(word.text);
+    Some(request)
+}
+
+unsafe fn handle_action(
+    automation: &IUIAutomation,
     request: ActionRequest,
     undo: &mut Option<Undo>,
 ) -> windows::core::Result<bool> {
@@ -403,7 +460,6 @@ unsafe fn handle_action(
         || GetForegroundWindow() != foreground
         || input_focus(foreground) != request.focus
     {
-        *undo = None;
         return Ok(false);
     }
     if PAUSED.load(Ordering::Relaxed) || !process_allowed(foreground) {
@@ -428,31 +484,32 @@ unsafe fn handle_action(
         }
         thread::sleep(Duration::from_millis(10));
     }
-    if let Some(previous) = undo.take() {
+    if let Some(previous) = if request.automatic { None } else { undo.take() } {
         if previous.stamp.valid(request.epoch, Instant::now())
             && !request.automatic
             && previous.foreground == request.foreground
             && TRACK_MOUSE.load(Ordering::Relaxed)
         {
-            if !previous.after.is_current(automation, foreground)?
+            let Some(after) = crate::caret::read_word_mode(automation, foreground, previous.mode)?
+            else {
+                return Ok(false);
+            };
+            if !previous
+                .before
+                .matches_replacement(automation, &after, &previous.replacement)?
                 || !process_allowed(foreground)
                 || EDIT_EPOCH.load(Ordering::Relaxed) != request.epoch
             {
                 return Ok(false);
             }
-            if previous.after.select_if_unchanged(automation, foreground)? {
+            if after.select_if_unchanged(automation, foreground)? {
                 if EDIT_EPOCH.load(Ordering::Relaxed) != request.epoch
                     || GetForegroundWindow() != foreground
                     || input_focus(foreground) != request.focus
                 {
                     return Ok(false);
                 }
-                emit_replacement(
-                    foreground,
-                    &previous.after,
-                    &previous.before,
-                    previous.layout,
-                );
+                emit_replacement(foreground, &after, &previous.before.text, previous.layout);
                 return Ok(true);
             }
             return Ok(false);
@@ -463,7 +520,6 @@ unsafe fn handle_action(
     } else {
         crate::caret::ReadMode::Current
     };
-    let deadline = Instant::now() + Duration::from_millis(150);
     let word = loop {
         if EDIT_EPOCH.load(Ordering::Relaxed) != request.epoch
             || GetForegroundWindow() != foreground
@@ -483,12 +539,12 @@ unsafe fn handle_action(
                 break word;
             }
         }
-        if !request.automatic || Instant::now() >= deadline {
-            return Ok(false);
-        }
-        thread::sleep(Duration::from_millis(10));
+        return Ok(false);
     };
-    let Some((replacement, target)) = detector.replacement(&word.text, request.automatic) else {
+    if !request.permits_text(&word.text) {
+        return Ok(false);
+    }
+    let Some((replacement, target)) = convert(&word.text) else {
         return Ok(false);
     };
     let Some(layout) = target_layout(target) else {
@@ -514,36 +570,18 @@ unsafe fn handle_action(
     if !TRACK_MOUSE.load(Ordering::Relaxed) {
         return Ok(true);
     }
-    let deadline = Instant::now() + Duration::from_millis(250);
-    while Instant::now() < deadline
-        && EDIT_EPOCH.load(Ordering::Relaxed) == request.epoch
-        && GetForegroundWindow() == foreground
-        && process_allowed(foreground)
-    {
-        if let Some(after) = crate::caret::read_word_mode(automation, foreground, mode)
-            .ok()
-            .flatten()
-        {
-            if word
-                .matches_replacement(automation, &after, &replacement)
-                .unwrap_or(false)
-                && after.is_current(automation, foreground).unwrap_or(false)
-            {
-                *undo = Some(Undo {
-                    before: word.text,
-                    layout: original_layout,
-                    foreground: request.foreground,
-                    after,
-                    stamp: UndoStamp {
-                        epoch: request.epoch,
-                        deadline: Instant::now() + Duration::from_secs(10),
-                    },
-                });
-                break;
-            }
-        }
-        thread::sleep(Duration::from_millis(10));
-    }
+    // Verify the resulting text only when undo is requested, keeping the correction queue free.
+    *undo = Some(Undo {
+        before: word,
+        replacement,
+        mode,
+        layout: original_layout,
+        foreground: request.foreground,
+        stamp: UndoStamp {
+            epoch: request.epoch,
+            deadline: Instant::now() + Duration::from_secs(10),
+        },
+    });
     Ok(true)
 }
 
@@ -833,7 +871,6 @@ pub fn run() {
             };
             let _ = ready_tx.send(automation.is_ok());
             if let Ok(automation) = automation {
-                let detector = Detector::new();
                 let mut undo = None;
                 while !WORKERS_STOP.load(Ordering::Relaxed) {
                     match rx.recv_timeout(Duration::from_millis(120)) {
@@ -842,7 +879,7 @@ pub fn run() {
                             if GetForegroundWindow() != foreground {
                                 continue;
                             }
-                            let _ = handle_action(&automation, &detector, request, &mut undo);
+                            let _ = handle_action(&automation, request, &mut undo);
                         }
                         Err(mpsc::RecvTimeoutError::Timeout) => {
                             if undo.as_ref().is_some_and(|u| {
@@ -856,7 +893,6 @@ pub fn run() {
                         Err(mpsc::RecvTimeoutError::Disconnected) => break,
                     }
                 }
-                drop(detector);
                 drop(automation);
             }
             if initialized {
@@ -869,6 +905,32 @@ pub fn run() {
             let _ = CloseHandle(mutex);
             return;
         }
+        let (auto_tx, auto_rx) = mpsc::channel::<ActionRequest>();
+        let correction_tx = tx.clone();
+        thread::spawn(move || {
+            if CoInitializeEx(None, COINIT_MULTITHREADED).is_ok() {
+                if let Ok(automation) =
+                    CoCreateInstance::<_, IUIAutomation>(&CUIAutomation, None, CLSCTX_INPROC_SERVER)
+                {
+                    let detector = Detector::new();
+                    while !WORKERS_STOP.load(Ordering::Relaxed) {
+                        match auto_rx.recv_timeout(Duration::from_millis(120)) {
+                            Ok(request) => {
+                                if let Some(approved) =
+                                    approve_auto(&automation, &detector, request)
+                                {
+                                    let _ = correction_tx.send(approved);
+                                }
+                            }
+                            Err(mpsc::RecvTimeoutError::Timeout) => {}
+                            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                        }
+                    }
+                }
+                CoUninitialize();
+            }
+        });
+        let _ = AUTO_JOBS.set(auto_tx);
         // A slow hint provider must not hold up shortcut correction or undo.
         thread::spawn(move || {
             let initialized = CoInitializeEx(None, COINIT_MULTITHREADED).is_ok();
@@ -987,6 +1049,31 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn auto_requires_same_approved_text_while_manual_bypasses_dictionary() {
+        let mut request = super::ActionRequest {
+            foreground: 0,
+            focus: 0,
+            epoch: 1,
+            automatic: true,
+            approved_text: None,
+        };
+        assert!(!request.permits_text("c]h; "));
+        request.approved_text = Some("c]h; ".into());
+        assert!(request.permits_text("c]h; "));
+        assert!(!request.permits_text("hello "));
+        request.automatic = false;
+        assert!(request.permits_text("unknownname"));
+    }
+    #[test]
+    fn hints_wait_for_typing_pause_and_expire() {
+        assert!(!super::hint_time_active(0, 1000, 1000));
+        assert!(!super::hint_time_active(100, 449, 1000));
+        assert!(super::hint_time_active(100, 450, 1000));
+        assert!(super::hint_time_active(100, 1099, 1000));
+        assert!(!super::hint_time_active(100, 1100, 1000));
+        assert!(!super::hint_time_active(1100, 1100, 1000));
+    }
     use super::*;
     use std::time::{Duration, Instant};
 
@@ -1123,7 +1210,6 @@ mod tests {
                 CoInitializeEx(None, COINIT_MULTITHREADED).ok().unwrap();
                 let automation: IUIAutomation =
                     CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).unwrap();
-                let detector = Detector::new();
                 let mut undo = None;
                 for (hwnd, reset) in rx {
                     if reset {
@@ -1134,9 +1220,10 @@ mod tests {
                         focus: input_focus(HWND(hwnd as *mut _)),
                         epoch: EDIT_EPOCH.load(Ordering::Relaxed),
                         automatic: false,
+                        approved_text: None,
                     };
-                    let result = handle_action(&automation, &detector, request, &mut undo)
-                        .map_err(|e| e.to_string());
+                    let result =
+                        handle_action(&automation, request, &mut undo).map_err(|e| e.to_string());
                     done_tx.send(result).unwrap();
                 }
                 drop(automation);

@@ -61,14 +61,15 @@ fn stable_layout(
         .map_or(width, |old| old.width.max(width))
         .min(work.right - work.left);
     let (anchor, x, y) = if let Some(old) = previous {
-        if width <= 0 || height <= 0 || height > work.bottom - work.top {
+        if width <= 0
+            || height <= 0
+            || height > work.bottom - work.top
+            || old.y + height > work.bottom
+            || old.y <= caret.y
+        {
             return None;
         }
-        (
-            old.caret,
-            old.x.clamp(work.left, work.right - width),
-            old.y.clamp(work.top, work.bottom - height),
-        )
+        (old.caret, old.x.clamp(work.left, work.right - width), old.y)
     } else {
         let (x, y) = placement(caret, width, height, work, scale(8))?;
         (caret, x, y)
@@ -315,12 +316,9 @@ fn placement(caret: POINT, width: i32, height: i32, work: RECT, gap: i32) -> Opt
         return None;
     }
     let x = (caret.x + gap).clamp(work.left, work.right - width);
-    let y = if caret.y + gap + height <= work.bottom {
-        caret.y + gap
-    } else {
-        caret.y - height - gap
-    };
-    Some((x, y.clamp(work.top, work.bottom - height)))
+    // Hide at the bottom edge rather than move the popup back over the typing line.
+    let y = (caret.y + gap).max(work.top);
+    (y + height <= work.bottom).then_some((x, y))
 }
 
 unsafe extern "system" fn popup_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
@@ -449,8 +447,8 @@ mod tests {
             bottom: 1040,
         };
         let next =
-            stable_layout(Some(first), POINT { x: -10, y: 1020 }, 300, 48, 144, work).unwrap();
-        assert_eq!((next.x, next.y), (-300, 960));
+            stable_layout(Some(first), POINT { x: -10, y: 900 }, 300, 48, 144, work).unwrap();
+        assert_eq!((next.x, next.y), (-300, 912));
         assert_eq!(next.dpi, 144);
     }
     #[test]
@@ -496,6 +494,13 @@ mod tests {
         }
     }
     #[test]
+    fn growing_popup_never_moves_over_typing_line() {
+        let first = stable_layout(None, POINT { x: 100, y: 990 }, 70, 32, 96, screen()).unwrap();
+        assert!(
+            stable_layout(Some(first), POINT { x: 100, y: 990 }, 70, 48, 96, screen()).is_none()
+        );
+    }
+    #[test]
     fn placement_handles_screen_edges_and_negative_monitors() {
         let work = RECT {
             left: -1920,
@@ -503,10 +508,7 @@ mod tests {
             right: 0,
             bottom: 1040,
         };
-        assert_eq!(
-            placement(POINT { x: -4, y: 1025 }, 200, 32, work, 8),
-            Some((-200, 985))
-        );
+        assert_eq!(placement(POINT { x: -4, y: 1025 }, 200, 32, work, 8), None);
         assert_eq!(
             placement(POINT { x: -1919, y: 0 }, 200, 32, work, 8),
             Some((-1911, 8))

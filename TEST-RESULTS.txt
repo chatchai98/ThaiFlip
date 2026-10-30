@@ -1,10 +1,10 @@
-ThaiFlip v0.1.2
+ThaiFlip v0.1.3
 Author: Chatchai Jomta
 License: MIT
 Contact: chatchai.j98@gmail.com
 
-46 tests passed; 0 failed; 1 interactive desktop test ignored.
-New regression coverage: the double-tap gap ends at the second key-down; long holds and expired gaps remain rejected. Alt menu masking uses an unassigned virtual key, ordered before a replacement Alt-up, with all injected keys marked as owned input. Physical Alt-up is passed through when injection fails.
-Shortcut labels now read runtime state only on the UI/hook thread. Hint workers no longer contend with the hook state mutex. Exclusion policy checks wait for a concurrent read rather than treating lock contention as an excluded application. Exclusion dialogs release the settings lock before entering a nested message loop.
-Existing single-tap, capture, Settings persistence, conversion, leading-mark RichEdit, exclusions, popup and temporary-registry tests passed. Registry tests only use unique temporary HKCU Software\TabThaiStartupTest-* keys.
-The exact Windows notification reported by the user has not been identified. Physical-key menu/sound behavior, full Notepad correction and actual Windows logon remain unverified. No Windows accessibility settings were changed.
+49 tests passed; 0 failed; 1 interactive desktop test ignored.
+New coverage: hints wait for a 350ms pause and expire; popup hides when it cannot fit below the caret, including height changes; Auto requires exact preflight-approved text while manual correction bypasses the dictionary.
+Auto preflight runs on a separate COM worker. Text mutation remains serialized and revalidates text, input generation, focus and exclusions. Undo verifies replacement text on demand instead of polling for up to 250ms after each correction.
+Existing native Edit/RichEdit, leading-mark conversion, shortcut, settings, popup and isolated registry tests pass. Registry tests only use temporary HKCU Software\TabThaiStartupTest-* keys.
+No physical-key Notepad end-to-end test or before/after latency benchmark was performed. App-specific UI Automation latency, actual popup placement across real monitors, Auto end-to-end and Windows logon remain unverified.
